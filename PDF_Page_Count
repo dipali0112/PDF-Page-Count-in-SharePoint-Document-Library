@@ -1,0 +1,47 @@
+[The SharePoint document library in Show Page Count only for PDF]
+
+
+# Load PnP PowerShell Module
+Import-Module PnP.PowerShell
+
+# SharePoint Connection
+$SiteURL = "https://futurrizoninterns.sharepoint.com/sites/ab"
+Connect-PnPOnline -Url $SiteURL -UseWebLogin
+
+# Load PdfSharp DLL
+Add-Type -Path "C:\Users\KEVAL JOSHI\Documents\Office_Files\PdfSharp.dll"
+
+# Function to Get PDF Page Count
+Function Get-PDFPageCount {
+    param ($FilePath)
+    $PDF = [PdfSharp.Pdf.IO.PdfReader]::Open($FilePath, [PdfSharp.Pdf.IO.PdfDocumentOpenMode]::ReadOnly)
+    $PageCount = $PDF.PageCount
+    $PDF.Close()
+    return $PageCount
+}
+
+# SharePoint Library Name
+$LibraryName = "a"
+
+# Get all PDF Files in Library
+$PDFFiles = Get-PnPListItem -List $LibraryName | Where-Object { $_["File_x0020_Type"] -eq "pdf" }
+
+# Loop through PDFs, Get Page Count & Update SharePoint
+foreach ($File in $PDFFiles) {
+    $FilePath = $File["FileRef"]
+    $LocalFile = "C:\Temp\" + $File["FileLeafRef"]
+
+    # Download PDF from SharePoint
+    Get-PnPFile -Url $FilePath -Path "C:\Temp\" -FileName $File["FileLeafRef"] -AsFile -Force
+
+    # Get Page Count
+    $PageCount = Get-PDFPageCount -FilePath $LocalFile
+
+    # Update SharePoint column
+    Set-PnPListItem -List $LibraryName -Identity $File.Id -Values @{"PDFPageCount" = $PageCount}
+
+    Write-Host "Updated $($File['FileLeafRef']) with $PageCount pages"
+}
+
+# Disconnect SharePoint Session
+Disconnect-PnPOnline
